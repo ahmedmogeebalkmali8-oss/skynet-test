@@ -1,282 +1,509 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sky Net - سكاي نت</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Tajawal', sans-serif;
-            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #dbeafe 100%);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  LayoutDashboard, 
+  Package, 
+  ShoppingCart, 
+  RotateCcw, 
+  Users, 
+  UserSquare2, 
+  Clock, 
+  BarChart3, 
+  Wallet, 
+  Bell, 
+  Plus, 
+  Search, 
+  Printer, 
+  LogOut,
+  ChevronRight,
+  AlertTriangle,
+  Settings,
+  ShieldCheck,
+  ShoppingBag
+} from 'lucide-react';
 
-        /* تدرج احترافي للخلفية العلوية */
-        .header-gradient {
-            background: linear-gradient(180deg, #1d4ed8 0%, #2563eb 40%, #3b82f6 100%);
-            box-shadow: 0 10px 30px -5px rgba(37, 99, 235, 0.4);
-        }
+// --- بيانات تجريبية أولية ---
+const initialItems = [
+  { id: 1, name: 'منتج أ', category: 'غذائية', price: 50, buyPrice: 40, quantity: 100, expiryDate: '2026-02-15', minQty: 10 },
+  { id: 2, name: 'منتج ب', category: 'إلكترونيات', price: 1200, buyPrice: 1000, quantity: 5, expiryDate: '2028-12-01', minQty: 2 },
+  { id: 3, name: 'منتج ج', category: 'منظفات', price: 25, buyPrice: 15, quantity: 50, expiryDate: '2026-01-25', minQty: 15 },
+];
 
-        /* تأثير الزجاج والعناصر البارزة */
-        .glass-card {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1), 
-                        inset 0 2px 4px rgba(255, 255, 255, 0.8);
-        }
+const initialEmployees = [
+  { id: 1, name: 'أحمد محمد', role: 'كاشير', shift: 'صباحي', salary: 3000 },
+  { id: 2, name: 'سارة خالد', role: 'محاسب', shift: 'مسائي', salary: 4500 },
+];
 
-        /* تحريك النص */
-        @keyframes marquee {
-            0% { transform: translateX(100%); }
-            100% { transform: translateX(-100%); }
-        }
-        .animate-marquee {
-            display: inline-block;
-            white-space: nowrap;
-            animation: marquee 15s linear infinite;
-        }
+const App = () => {
+  // --- الحالات العامة (State) ---
+  const [view, setView] = useState('dashboard'); // dashboard, pos, inventory, returns, debts, reports, employees, customers_portal
+  const [userRole, setUserRole] = useState('manager'); // manager, employee, customer
+  const [items, setItems] = useState(initialItems);
+  const [sales, setSales] = useState([]);
+  const [debts, setDebts] = useState([
+    { id: 1, customerName: 'علي حسن', amount: 500, phone: '0501234567' }
+  ]);
+  const [employees, setEmployees] = useState(initialEmployees);
+  const [cart, setCart] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
-        /* أزرار عائمة ثلاثية الأبعاد */
-        .floating-btn {
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.1));
-        }
-        .floating-btn:active { transform: scale(0.9); }
+  // --- التنبيهات (الانتهاء والكمية) ---
+  useEffect(() => {
+    const alerts = [];
+    const today = new Date();
+    const nextMonth = new Date();
+    nextMonth.setMonth(today.getMonth() + 1);
 
-        @keyframes bounce-slow {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-        .animate-bounce-slow { animation: bounce-slow 3s infinite ease-in-out; }
+    items.forEach(item => {
+      const expDate = new Date(item.expiryDate);
+      if (expDate <= today) {
+        alerts.push({ type: 'error', message: `المنتج ${item.name} منتهي الصلاحية!` });
+      } else if (expDate <= nextMonth) {
+        alerts.push({ type: 'warning', message: `المنتج ${item.name} يقترب من الانتهاء (${item.expiryDate})` });
+      }
+      if (item.quantity <= item.minQty) {
+        alerts.push({ type: 'info', message: `المنتج ${item.name} على وشك النفاذ (الكمية: ${item.quantity})` });
+      }
+    });
+    setNotifications(alerts);
+  }, [items]);
 
-        /* نافذة الخطأ 3D */
-        .error-modal-content {
-            transform: perspective(1000px) rotateX(5deg);
-            box-shadow: 0 30px 60px -12px rgba(220, 38, 38, 0.3), 
-                        inset 0 0 0 4px white;
-        }
+  // --- دوال العمليات ---
+  const addToCart = (item) => {
+    if (item.quantity <= 0) return;
+    const existing = cart.find(c => c.id === item.id);
+    if (existing) {
+      setCart(cart.map(c => c.id === item.id ? { ...c, cartQty: c.cartQty + 1 } : c));
+    } else {
+      setCart([...cart, { ...item, cartQty: 1 }]);
+    }
+  };
 
-        /* الصور المتحركة */
-        .slide { display: none; width: 100%; height: 100%; object-fit: cover; transition: 1s ease-in-out; }
-        .active-slide { display: block; animation: zoomIn 0.8s ease-out; }
-        @keyframes zoomIn { from { opacity: 0; transform: scale(1.1); } to { opacity: 1; transform: scale(1); } }
-    </style>
-</head>
-<body class="pb-20">
+  const completeSale = (isDebt = false, customerName = '') => {
+    if (cart.length === 0) return;
+    
+    const total = cart.reduce((sum, item) => sum + (item.price * item.cartQty), 0);
+    const newSale = {
+      id: Date.now(),
+      items: [...cart],
+      total,
+      date: new Date().toLocaleString('ar-SA'),
+      type: isDebt ? 'دين' : 'نقدي'
+    };
 
-    <!-- Header Gradient (مثل الصور تماماً) -->
-    <div class="header-gradient h-56 rounded-b-[4rem] absolute top-0 left-0 right-0 z-0"></div>
+    setSales([newSale, ...sales]);
+    
+    // تحديث المخزون
+    const updatedItems = items.map(item => {
+      const cartItem = cart.find(c => c.id === item.id);
+      return cartItem ? { ...item, quantity: item.quantity - cartItem.cartQty } : item;
+    });
+    setItems(updatedItems);
 
-    <div class="relative z-10 max-w-md mx-auto px-6 pt-10">
-        
-        <!-- اسم الشبكة بألوان ممزوجة -->
-        <div class="text-center mb-6">
-            <h1 class="text-4xl font-[900] text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.3)]">سكاي نت</h1>
-            <div class="h-1 w-20 bg-gradient-to-r from-transparent via-blue-200 to-transparent mx-auto mt-2 opacity-50"></div>
-            <p class="text-[10px] text-blue-100 tracking-[0.4em] font-bold mt-2 uppercase">Sky Net Service</p>
-        </div>
+    if (isDebt && customerName) {
+      setDebts([...debts, { id: Date.now(), customerName, amount: total, phone: '-' }]);
+    }
 
-        <!-- Carousel الصور في المنتصف -->
-        <div class="bg-white rounded-[2.5rem] overflow-hidden shadow-2xl border-[6px] border-white h-44 relative mb-4">
-            <img src="https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=600" class="slide active-slide" id="s1">
-            <img src="https://images.unsplash.com/photo-1563986768609-322da13575f3?w=600" class="slide" id="s2">
-            <img src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600" class="slide" id="s3">
-            <div class="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
-                <div class="w-2 h-2 rounded-full bg-white shadow"></div>
-                <div class="w-2 h-2 rounded-full bg-white/50 shadow"></div>
-            </div>
-        </div>
+    setCart([]);
+    window.print(); // محاكاة الطباعة
+  };
 
-        <!-- شريط النص المتحرك -->
-        <div class="bg-white/40 backdrop-blur-sm border border-white/40 py-2 rounded-xl mb-8 overflow-hidden">
-            <div class="animate-marquee">
-                <span class="text-xs font-bold text-blue-800 mx-4">🚀 مرحباً بكم في شبكة سكاي نت.. سرعات خيالية وعروض مستمرة طوال العام.. استمتع بأقوى تغطية في المنطقة..</span>
-            </div>
-        </div>
+  // --- المكونات الفرعية (Sub-components) ---
 
-        <!-- واجهة الدخول - صندوق ممزوج الألوان -->
-        <div id="loginView" class="glass-card rounded-[3rem] p-8 transition-all duration-500">
-            <div class="text-center mb-8">
-                <div class="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-white shadow-inner">
-                    <span class="text-4xl">🔑</span>
-                </div>
-                <h2 class="text-2xl font-[900] bg-gradient-to-l from-blue-800 to-blue-600 bg-clip-text text-transparent">تسجيل الدخول</h2>
-                <p class="text-slate-400 text-sm mt-1">أدخل رقم الكرت أدناه</p>
-            </div>
+  const SidebarItem = ({ icon: Icon, label, id, active }) => (
+    <button
+      onClick={() => setView(id)}
+      className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
+        active ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800'
+      }`}
+    >
+      <Icon size={20} />
+      <span className="font-medium text-sm">{label}</span>
+    </button>
+  );
 
-            <div class="space-y-6">
-                <div class="relative">
-                    <input type="text" id="cardCode" placeholder="0000-0000" 
-                        class="w-full bg-slate-50/50 border-2 border-slate-100 rounded-[2rem] py-5 px-6 text-center text-3xl font-black text-blue-600 focus:outline-none focus:border-blue-400 focus:bg-white transition-all shadow-inner placeholder:text-slate-300">
-                </div>
-                
-                <button onclick="processLogin()" 
-                    class="w-full bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 text-white py-5 rounded-[2rem] font-black text-xl shadow-[0_10px_20px_rgba(37,99,235,0.3)] active:scale-95 transition-all border-b-4 border-blue-800">
-                    دخول للشبكة
-                </button>
-            </div>
-        </div>
-
-        <!-- واجهة النجاح - المعلومات -->
-        <div id="successView" class="hidden opacity-0 bg-white rounded-[3rem] p-6 shadow-2xl border border-blue-50">
-            <div class="text-center mb-6">
-                <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-2 border-2 border-white shadow-md">✅</div>
-                <h2 class="font-black text-slate-800 text-xl">تم الاتصال بنجاح</h2>
-            </div>
-
-            <div class="grid grid-cols-1 gap-3">
-                <div class="flex justify-between items-center p-4 bg-gradient-to-r from-blue-50 to-white rounded-2xl border border-blue-100">
-                    <span class="text-xs font-bold text-slate-500">التحميل المتبقي</span>
-                    <span class="text-blue-700 font-black">1.5 GB</span>
-                </div>
-                <div class="flex justify-between items-center p-4 bg-gradient-to-r from-purple-50 to-white rounded-2xl border border-purple-100">
-                    <span class="text-xs font-bold text-slate-500">الوقت المتبقي</span>
-                    <span class="text-purple-700 font-black">04:20:00</span>
-                </div>
-                <div class="flex justify-between items-center p-4 bg-gradient-to-r from-orange-50 to-white rounded-2xl border border-orange-100">
-                    <span class="text-xs font-bold text-slate-500">الوقت المستغرق</span>
-                    <span class="text-orange-700 font-black">00:45:12</span>
-                </div>
-                <div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                    <span class="text-xs font-bold text-slate-500">رقم الكرت</span>
-                    <span id="maskedCard" class="font-mono font-bold text-slate-800"></span>
-                </div>
-            </div>
-            <button onclick="location.reload()" class="w-full mt-6 bg-red-50 text-red-500 py-3 rounded-2xl font-bold border border-red-100 transition-colors">تسجيل الخروج</button>
-        </div>
-
-        <!-- الأزرار العائمة المتحركة -->
-        <div class="flex justify-center gap-14 mt-12 mb-10">
-            <div onclick="openModal('pricesModal')" class="floating-btn animate-bounce-slow flex flex-col items-center gap-2 cursor-pointer">
-                <div class="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-400 rounded-full flex items-center justify-center text-white shadow-[0_10px_20px_rgba(37,99,235,0.4)] border-4 border-white">
-                    <span class="text-2xl">💵</span>
-                </div>
-                <span class="text-[10px] font-black text-blue-800 bg-white/80 px-3 py-1 rounded-full shadow-sm border border-white">الأسعار</span>
-            </div>
-
-            <div onclick="openModal('posModal')" class="floating-btn animate-bounce-slow [animation-delay:1s] flex flex-col items-center gap-2 cursor-pointer">
-                <div class="w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-400 rounded-full flex items-center justify-center text-white shadow-[0_10px_20px_rgba(147,51,234,0.4)] border-4 border-white">
-                    <span class="text-2xl">🏪</span>
-                </div>
-                <span class="text-[10px] font-black text-purple-800 bg-white/80 px-3 py-1 rounded-full shadow-sm border border-white">نقاط البيع</span>
-            </div>
-        </div>
-
-        <!-- التواصل -->
-        <footer class="text-center py-6">
-            <div class="flex justify-center gap-6 mb-4 opacity-70">
-                <span class="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">📞</span>
-                <span class="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md text-green-500">💬</span>
-            </div>
-            <p class="text-[9px] text-slate-400 font-bold tracking-widest uppercase italic">Design by Sky Net Team © 2026</p>
-        </footer>
+  const StatCard = ({ title, value, color, icon: Icon }) => (
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+      <div>
+        <p className="text-gray-500 text-sm mb-1">{title}</p>
+        <h3 className="text-2xl font-bold text-gray-800">{value}</h3>
+      </div>
+      <div className={`p-3 rounded-xl ${color}`}>
+        <Icon className="text-white" size={24} />
+      </div>
     </div>
+  );
 
-    <!-- نافذة الخطأ 3D (مميزة جداً) -->
-    <div id="errorModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300">
-        <div class="bg-white w-full max-w-xs rounded-[3rem] overflow-hidden error-modal-content border-[8px] border-white">
-            <div class="bg-gradient-to-b from-red-600 to-red-500 py-8 text-center text-white">
-                <div class="text-5xl mb-2">🚫</div>
-                <h3 class="text-xl font-black">خطأ في التحقق</h3>
-            </div>
-            <div class="p-8 text-center bg-white">
-                <p id="errorMessage" class="text-slate-700 font-bold leading-relaxed mb-6"></p>
-                <button onclick="closeModal('errorModal')" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black shadow-lg active:scale-95 transition-all">موافق</button>
-            </div>
+  // --- الواجهات الرئيسية ---
+
+  const DashboardView = () => (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard title="إجمالي المبيعات" value={`${sales.reduce((s, a) => s + a.total, 0)} ر.س`} color="bg-green-500" icon={Wallet} />
+        <StatCard title="عدد المنتجات" value={items.length} color="bg-blue-500" icon={Package} />
+        <StatCard title="الديون المستحقة" value={`${debts.reduce((s, a) => s + a.amount, 0)} ر.س`} color="bg-red-500" icon={AlertTriangle} />
+        <StatCard title="إجمالي الموظفين" value={employees.length} color="bg-purple-500" icon={Users} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Bell className="text-amber-500" /> تنبيهات هامة
+          </h3>
+          <div className="space-y-3">
+            {notifications.length > 0 ? notifications.map((n, i) => (
+              <div key={i} className={`p-3 rounded-lg border-r-4 flex items-center gap-3 text-sm ${
+                n.type === 'error' ? 'bg-red-50 border-red-500 text-red-700' : 
+                n.type === 'warning' ? 'bg-amber-50 border-amber-500 text-amber-700' : 
+                'bg-blue-50 border-blue-500 text-blue-700'
+              }`}>
+                <AlertTriangle size={16} />
+                {n.message}
+              </div>
+            )) : <p className="text-gray-400 text-center py-4">لا توجد تنبيهات حالياً</p>}
+          </div>
         </div>
-    </div>
 
-    <!-- نافذة الأسعار -->
-    <div id="pricesModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
-        <div class="bg-white w-full max-w-sm rounded-[3rem] overflow-hidden shadow-2xl animate-in zoom-in-95">
-            <div class="bg-gradient-to-r from-blue-700 to-blue-500 p-6 text-white flex justify-between items-center">
-                <h3 class="font-black text-lg">قائمة الأسعار</h3>
-                <button onclick="closeModal('pricesModal')" class="bg-white/20 p-2 rounded-full">✕</button>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <h3 className="text-lg font-bold mb-4">آخر العمليات</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-sm">
+              <thead>
+                <tr className="text-gray-400 border-b">
+                  <th className="pb-3 font-medium">التاريخ</th>
+                  <th className="pb-3 font-medium">النوع</th>
+                  <th className="pb-3 font-medium">المبلغ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sales.slice(0, 5).map(sale => (
+                  <tr key={sale.id} className="border-b last:border-0 hover:bg-gray-50">
+                    <td className="py-3">{sale.date}</td>
+                    <td className="py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs ${sale.type === 'نقدي' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {sale.type}
+                      </span>
+                    </td>
+                    <td className="py-3 font-bold">{sale.total} ر.س</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const POSView = () => (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-140px)]">
+      {/* قائمة المنتجات */}
+      <div className="lg:col-span-2 space-y-4 flex flex-col">
+        <div className="relative">
+          <Search className="absolute right-3 top-3 text-gray-400" size={20} />
+          <input 
+            type="text" 
+            placeholder="ابحث عن منتج..." 
+            className="w-full pr-10 pl-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none"
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 overflow-y-auto pr-2">
+          {items.filter(i => i.name.includes(searchTerm)).map(item => (
+            <div 
+              key={item.id}
+              onClick={() => addToCart(item)}
+              className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:border-blue-500 cursor-pointer transition-all active:scale-95 group"
+            >
+              <div className="w-full aspect-square bg-gray-50 rounded-xl mb-3 flex items-center justify-center text-gray-300 group-hover:text-blue-500">
+                <Package size={40} />
+              </div>
+              <h4 className="font-bold text-gray-800 text-sm truncate">{item.name}</h4>
+              <p className="text-blue-600 font-bold mt-1">{item.price} ر.س</p>
+              <div className="flex justify-between items-center mt-2 text-[10px] text-gray-500">
+                <span>المخزون: {item.quantity}</span>
+                <span className={new Date(item.expiryDate) < new Date() ? 'text-red-500' : ''}>
+                  {item.expiryDate}
+                </span>
+              </div>
             </div>
-            <div class="p-4 bg-slate-50">
-                <div class="rounded-2xl overflow-hidden border border-slate-100 bg-white">
-                    <table class="w-full text-sm text-right">
-                        <thead class="bg-slate-50 text-slate-400">
-                            <tr><th class="p-4">الباقة</th><th class="p-4">السعر</th><th class="p-4">الصلاحية</th></tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            <tr><td class="p-4 font-black">تصفح</td><td class="p-4 text-green-600 font-bold">500 ر.ي</td><td class="p-4 font-medium">يوم</td></tr>
-                            <tr><td class="p-4 font-black">يوتيوب</td><td class="p-4 text-green-600 font-bold">1000 ر.ي</td><td class="p-4 font-medium">3 أيام</td></tr>
-                            <tr><td class="p-4 font-black">ذهبية</td><td class="p-4 text-green-600 font-bold">2000 ر.ي</td><td class="p-4 font-medium">أسبوع</td></tr>
-                        </tbody>
-                    </table>
+          ))}
+        </div>
+      </div>
+
+      {/* سلة البيع */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full overflow-hidden">
+        <div className="p-4 border-b bg-gray-50">
+          <h3 className="font-bold flex items-center gap-2">
+            <ShoppingCart size={18} /> فاتورة جديدة
+          </h3>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {cart.map((item, idx) => (
+            <div key={idx} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded-lg">
+              <div>
+                <p className="font-bold">{item.name}</p>
+                <p className="text-gray-500 text-xs">{item.cartQty} x {item.price} ر.س</p>
+              </div>
+              <button 
+                onClick={() => setCart(cart.filter((_, i) => i !== idx))}
+                className="text-red-500 p-1 hover:bg-red-50 rounded"
+              >
+                <LogOut size={16} />
+              </button>
+            </div>
+          ))}
+          {cart.length === 0 && <p className="text-center text-gray-400 mt-10">السلة فارغة</p>}
+        </div>
+        <div className="p-4 border-t bg-gray-50 space-y-4">
+          <div className="flex justify-between items-center text-lg font-bold">
+            <span>الإجمالي:</span>
+            <span className="text-blue-600">{cart.reduce((s, i) => s + (i.price * i.cartQty), 0)} ر.س</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button 
+              onClick={() => completeSale(false)}
+              className="bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+            >
+              <Printer size={18} /> نقدي
+            </button>
+            <button 
+              onClick={() => {
+                const name = prompt("اسم العميل للآجل:");
+                if (name) completeSale(true, name);
+              }}
+              className="bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-colors"
+            >
+              آجل (دين)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const InventoryView = () => (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+      <div className="p-6 border-b flex justify-between items-center">
+        <h3 className="text-xl font-bold">إدارة المخزون</h3>
+        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm">
+          <Plus size={18} /> إضافة صنف جديد
+        </button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-right">
+          <thead>
+            <tr className="bg-gray-50 text-gray-500 text-sm">
+              <th className="p-4 font-medium">المنتج</th>
+              <th className="p-4 font-medium">الفئة</th>
+              <th className="p-4 font-medium">سعر التكلفة</th>
+              <th className="p-4 font-medium">سعر البيع</th>
+              <th className="p-4 font-medium">الكمية</th>
+              <th className="p-4 font-medium">تاريخ الصلاحية</th>
+              <th className="p-4 font-medium">الحالة</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(item => (
+              <tr key={item.id} className="border-b hover:bg-gray-50 transition-colors">
+                <td className="p-4 font-bold">{item.name}</td>
+                <td className="p-4 text-sm">{item.category}</td>
+                <td className="p-4 text-sm text-gray-500">{item.buyPrice} ر.س</td>
+                <td className="p-4 font-bold text-blue-600">{item.price} ر.س</td>
+                <td className="p-4">
+                   <span className={`font-bold ${item.quantity <= item.minQty ? 'text-red-600' : 'text-green-600'}`}>
+                    {item.quantity}
+                   </span>
+                </td>
+                <td className="p-4 text-sm">{item.expiryDate}</td>
+                <td className="p-4">
+                  <span className={`px-2 py-1 rounded text-xs ${new Date(item.expiryDate) < new Date() ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                    {new Date(item.expiryDate) < new Date() ? 'منتهي' : 'سليم'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const CustomerPortal = () => (
+    <div className="space-y-6">
+      <div className="bg-blue-600 p-8 rounded-3xl text-white">
+        <h2 className="text-2xl font-bold mb-2">مرحباً بك في متجرنا</h2>
+        <p className="opacity-90">يمكنك تصفح الأسعار والمنتجات المتاحة وتواريخ الصلاحية</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {items.map(item => (
+          <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center">
+             <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-4">
+                <ShoppingBag size={32} />
+             </div>
+             <h3 className="font-bold text-lg">{item.name}</h3>
+             <p className="text-blue-600 font-bold text-xl my-2">{item.price} ر.س</p>
+             <div className="text-sm text-gray-500 space-y-1">
+                <p>الكمية المتوفرة: {item.quantity}</p>
+                <p>تاريخ الصلاحية: {item.expiryDate}</p>
+             </div>
+             <button className="mt-4 w-full bg-gray-100 text-gray-800 py-2 rounded-xl font-medium hover:bg-gray-200 transition-colors">
+                طلب المنتج
+             </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const EmployeesView = () => (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-xl font-bold">الموظفون وأوقات العمل</h3>
+        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+          <Plus size={18} /> إضافة موظف
+        </button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {employees.map(emp => (
+          <div key={emp.id} className="p-4 border rounded-xl flex items-center gap-4">
+            <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-bold">
+              {emp.name[0]}
+            </div>
+            <div className="flex-1">
+              <h4 className="font-bold">{emp.name}</h4>
+              <p className="text-sm text-gray-500">{emp.role} - دوام {emp.shift}</p>
+            </div>
+            <div className="text-left">
+              <p className="text-xs text-gray-400">الراتب</p>
+              <p className="font-bold text-green-600">{emp.salary} ر.س</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-8 border-t pt-6">
+        <h4 className="font-bold mb-4 flex items-center gap-2"><Clock size={18} /> سجل الحضور (اليوم)</h4>
+        <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-500 text-center">
+          سجل الحضور الذكي يتم تحديثه آلياً عند تسجيل الدخول للنظام
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-right font-sans flex overflow-hidden" dir="rtl">
+      
+      {/* القائمة الجانبية (Sidebar) */}
+      {userRole !== 'customer' && (
+        <aside className="w-64 bg-gray-900 h-screen p-4 flex flex-col shrink-0">
+          <div className="flex items-center gap-3 px-2 mb-10 text-white">
+            <div className="bg-blue-600 p-2 rounded-xl">
+              <LayoutDashboard size={24} />
+            </div>
+            <h1 className="font-black text-xl tracking-tight">محاسب برو</h1>
+          </div>
+
+          <nav className="flex-1 space-y-2">
+            <SidebarItem icon={LayoutDashboard} label="لوحة التحكم" id="dashboard" active={view === 'dashboard'} />
+            <SidebarItem icon={ShoppingCart} label="نقطة البيع (POS)" id="pos" active={view === 'pos'} />
+            <SidebarItem icon={Package} label="المخزون" id="inventory" active={view === 'inventory'} />
+            <SidebarItem icon={RotateCcw} label="المرتجعات" id="returns" active={view === 'returns'} />
+            <SidebarItem icon={Wallet} label="الديون" id="debts" active={view === 'debts'} />
+            <SidebarItem icon={Users} label="الموظفون" id="employees" active={view === 'employees'} />
+            <SidebarItem icon={BarChart3} label="التقارير" id="reports" active={view === 'reports'} />
+          </nav>
+
+          <div className="mt-auto pt-6 border-t border-gray-800 space-y-2">
+             <button 
+              onClick={() => setUserRole(userRole === 'manager' ? 'employee' : 'manager')}
+              className="w-full flex items-center gap-3 p-3 text-amber-400 hover:bg-gray-800 rounded-lg transition-all text-sm"
+            >
+              <ShieldCheck size={20} />
+              تبديل الصلاحية: {userRole === 'manager' ? 'مدير' : 'موظف'}
+            </button>
+            <button 
+              onClick={() => setView('customers_portal')}
+              className="w-full flex items-center gap-3 p-3 text-blue-400 hover:bg-gray-800 rounded-lg transition-all text-sm"
+            >
+              <UserSquare2 size={20} />
+              واجهة العملاء
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {/* المحتوى الرئيسي */}
+      <main className="flex-1 h-screen overflow-y-auto">
+        {/* شريط علوي */}
+        <header className="bg-white h-16 border-b flex items-center justify-between px-8 sticky top-0 z-10">
+          <div className="flex items-center gap-4">
+             {userRole === 'customer' && (
+                <div className="flex items-center gap-3 px-2 text-gray-900">
+                  <div className="bg-blue-600 p-2 rounded-xl text-white">
+                    <LayoutDashboard size={24} />
+                  </div>
+                  <h1 className="font-black text-xl">متجرنا الإلكتروني</h1>
                 </div>
+             )}
+             <h2 className="text-lg font-bold text-gray-700">
+               {view === 'dashboard' && 'نظرة عامة'}
+               {view === 'pos' && 'نقطة البيع'}
+               {view === 'inventory' && 'المخزون'}
+               {view === 'employees' && 'الموظفين'}
+               {view === 'customers_portal' && 'واجهة العميل'}
+             </h2>
+          </div>
+          
+          <div className="flex items-center gap-6">
+            <div className="relative">
+              <Bell className="text-gray-400 cursor-pointer" />
+              {notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
+                  {notifications.length}
+                </span>
+              )}
             </div>
+            <div className="flex items-center gap-3 border-r pr-6">
+              <div className="text-left">
+                <p className="text-sm font-bold text-gray-800">{userRole === 'manager' ? 'المدير العام' : 'الموظف المسؤول'}</p>
+                <p className="text-[10px] text-gray-400">{new Date().toLocaleDateString('ar-SA')}</p>
+              </div>
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 font-bold">
+                {userRole === 'manager' ? 'M' : 'E'}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* جسم الصفحة */}
+        <div className="p-8">
+          {view === 'dashboard' && <DashboardView />}
+          {view === 'pos' && <POSView />}
+          {view === 'inventory' && <InventoryView />}
+          {view === 'employees' && <EmployeesView />}
+          {view === 'customers_portal' && <CustomerPortal />}
+          {(view === 'returns' || view === 'debts' || view === 'reports') && (
+            <div className="bg-white p-20 rounded-2xl border text-center text-gray-400">
+              <Settings className="mx-auto mb-4 animate-spin" size={48} />
+              <p className="text-lg font-medium">هذه الواجهة قيد التطوير البرمجي حالياً</p>
+              <button onClick={() => setView('dashboard')} className="mt-4 text-blue-600 flex items-center gap-2 mx-auto">
+                <ChevronRight size={18} /> العودة للرئيسية
+              </button>
+            </div>
+          )}
         </div>
+      </main>
+
+      {/* تنسيقات الطباعة */}
+      <style>{`
+        @media print {
+          aside, header, button, .no-print { display: none !important; }
+          main { padding: 0 !important; height: auto !important; }
+          .print-bill { display: block !important; padding: 20px; font-family: sans-serif; }
+        }
+      `}</style>
     </div>
+  );
+};
 
-    <!-- نافذة نقاط البيع -->
-    <div id="posModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
-        <div class="bg-white w-full max-w-xs rounded-[3rem] overflow-hidden shadow-2xl text-center animate-in zoom-in-95">
-            <div class="bg-gradient-to-b from-purple-700 to-purple-500 p-8 text-white">
-                <span class="text-6xl block mb-2">🏪</span>
-                <h3 class="text-xl font-black">أين تجدنا؟</h3>
-            </div>
-            <div class="p-10 bg-white">
-                <p class="text-2xl font-[900] text-slate-800 leading-tight">جميع البقالات المجاورة للشبكة</p>
-                <button onclick="closeModal('posModal')" class="mt-8 bg-purple-600 text-white px-10 py-3 rounded-full font-bold shadow-lg shadow-purple-200">فهمت</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Carousel System
-        let slideIndex = 0;
-        function autoSlide() {
-            const slides = document.querySelectorAll(".slide");
-            slides.forEach(s => s.classList.remove("active-slide"));
-            slideIndex++;
-            if (slideIndex > slides.length) slideIndex = 1;
-            slides[slideIndex - 1].classList.add("active-slide");
-            setTimeout(autoSlide, 5000);
-        }
-        autoSlide();
-
-        function processLogin() {
-            const code = document.getElementById("cardCode").value.trim();
-            if (!code) { showError("يرجى كتابة رقم الكرت أولاً"); return; }
-
-            const errors = {
-                '111': 'يرجى التحقق من رقم الكرت أو أنه انتهت صلاحيته',
-                '222': 'معذرة هذا الرقم مستخدم حالياً في جهاز آخر',
-                '333': 'عذراً لقد انتهى الوقت المتاح لك',
-                '444': 'عذراً لقد انتهى تحميل الكرت'
-            };
-
-            if (errors[code]) {
-                showError(errors[code]);
-            } else {
-                const loginView = document.getElementById("loginView");
-                const successView = document.getElementById("successView");
-                loginView.style.opacity = '0';
-                setTimeout(() => {
-                    loginView.classList.add("hidden");
-                    successView.classList.remove("hidden");
-                    setTimeout(() => successView.style.opacity = '1', 50);
-                    document.getElementById("maskedCard").innerText = code.substring(0, 3) + "****";
-                }, 400);
-            }
-        }
-
-        function showError(msg) {
-            document.getElementById("errorMessage").innerText = msg;
-            const modal = document.getElementById("errorModal");
-            modal.classList.remove("hidden");
-        }
-
-        function openModal(id) { document.getElementById(id).classList.remove("hidden"); }
-        function closeModal(id) { document.getElementById(id).classList.add("hidden"); }
-    </script>
-</body>
-</html>
-
-
+export default App;
